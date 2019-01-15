@@ -1,0 +1,102 @@
+;
+;	File 'md.mdp' was generated
+;	By user: Kim.QHwan
+;	On host: Kim.QHwan
+;	At date: Thu Jul 26 14:52:09 2012
+;
+
+; VARIOUS PREPROCESSING OPTIONS
+; Preprocessor information: use cpp syntax.
+; e.g.: -I/home/joe/doe -I/home/mary/roe
+include                  = 
+; e.g.: -DPOSRES -DFLEXIBLE (note these variable names are case sensitive)
+define                   = 
+
+
+;
+; RUN CONTROL PARAMETERS
+
+integrator               = md
+tinit                    = 0
+dt                       = 0.001
+nsteps                   = 100
+comm-mode                = linear
+nstcomm                  = 1
+cutoff-scheme		 = verlet
+
+
+;
+; ENERGY MINIMIZATION OPTIONS
+;
+emtol                    = 1
+emstep                   = 0.01
+nstcgsteep               = 1000
+
+
+
+;
+; OUTPUT CONTROL OPTIONS
+;
+nstxout                  = 1
+nstvout                  = 1
+nstfout			 = 1
+nstlog                   = 10
+nstcalcenergy            = -1
+nstenergy                = 1
+nstxout-compressed                = 0
+compressed-x-precision            = 1000
+
+
+;
+; NEIGHBORSEARCHING PARAMETERS
+;
+nstlist                  = 1
+ns-type                  = grid
+pbc                      = xyz
+periodic_molecules       = yes
+rlist                    = 4.0
+rlistlong                = -1
+
+
+;
+; OPTIONS FOR ELECTROSTATICS AND VDW
+;
+coulombtype              = cut-off
+rcoulomb                 = 4.0
+vdw-type                 = Cut-off
+rvdw                     = 4.0
+DispCorr		 = no
+
+;
+; OPTIONS FOR EWALD
+;
+fourierspacing = 0.12
+pme_order = 4
+ewald_rtol = 1e-5
+ewald_geometry = 3d
+epsilon_surface = 0
+
+
+;
+; OPTIONS FOR WEAK COCNTLING ALGORITHMS
+;
+tcoupl                   = nose-hoover
+nsttcouple               = 1
+tc_grps			 =  System
+tau_t			 = 	0.2
+ref_t			 =  300
+refcoord-scaling	 = no
+nstpcouple = 1
+
+
+;
+; OPTIONS FOR BONDS    
+;
+constraints              = h-bonds
+constraint-algorithm     = Lincs
+continuation             = no
+Shake-SOR                = no
+shake-tol                = 0.0001
+lincs-order              = 4
+lincs-iter               = 2
+

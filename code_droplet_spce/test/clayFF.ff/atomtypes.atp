@@ -1,0 +1,30 @@
+OW	15.99940; water oxygen
+HW	1.00800; water hydrogen
+O	15.99940; bulk oxygen
+OH	15.99940; hydroxyl oxygen
+HH	1.00800; hydroxyl oxygen
+SI	28.0855; bulk silicon
+SH	28.0855; bulk siliconn
+SD	28.0855
+OD	15.9994
+HD	1.00800
+ON 	15.99940; oxygen atom for TPI method
+MO	95.95
+S	32.06
+
+OW_tip5p 16.000; tip5p OW
+HW_tip5p 1.00800; tip5p HW
+MW 0.000 ; Virtual site for tip4p/5p water point charge
+W 0.000 ; wall atom
+WW 0.000 ; wall atom2 
+
+NAI 22.9897 ; Na+ ion
+CLI 35.45	; Cl- ion
+KI	39.0983	; K+ ion
+CAI	40.000
+ANI	40.000
+
+
+C 12.001; graphene
+CP 12.001
+CM 12.001

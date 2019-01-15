@@ -1,0 +1,11 @@
+[ moleculetype ]
+CL		1
+[ atoms ]
+1	CL		1		CL		CL			1		-1.00
+
+[ moleculetype ]
+CP		1
+[ atoms ]
+1	CP		1		CP		CP			1		1.00
+
+

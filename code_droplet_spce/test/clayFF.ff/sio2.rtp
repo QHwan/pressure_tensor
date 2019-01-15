@@ -1,0 +1,59 @@
+[ bondedtypes ]
+; bonds	angles
+	1	1	1	1
+
+[ CRI ]
+ [ atoms ]
+ SI1 	SI 	0.0	0
+ SI2 	SI 	0.0 	1
+ SI3 	SI 	0.0	2
+ SI4 	SI 	0.0	3
+ SI5 	SI 	0.0 	4
+ SI6 	SI 	0.0 	5
+ SI7 	SI 	0.0 	6
+ SI8 	SI 	0.0	7
+ O1 	O 	0.0 	8
+ O2 	O 	0.0 	9
+ O3 	O 	0.0 	10
+ O4 	O 	0.0 	11
+ O5 	O 	0.0	12
+ O6 	O 	0.0	13
+ O7 	O 	0.0 	14
+ O8 	O 	0.0 	15
+ O9 	O 	0.0 	16
+ O10 	O 	0.0 	17
+ O11 	O 	0.0	18
+ O12 	O 	0.0 	19
+ O13 	O 	0.0 	20
+ O14 	O 	0.0 	21
+ O15 	O 	0.0 	22
+ O16 	O 	0.0 	23
+ OH1	OH	-0.71	24
+ OH2 	OH	-0.71	25
+ OH3 	OH 	-0.71	26
+ OH4 	OH 	-0.71 	27
+ SH1 	SH 	0.310 	28
+ SH2 	SH 	0.310 	29
+ SH3 	SH 	0.310 	30
+ SH4 	SH 	0.310 	31
+ HH1 	HH 	0.400	32
+ HH2	HH 	0.400 	33
+ HH3 	HH 	0.400 	34
+ HH4 	HH 	0.400 	35
+
+[ GRA ]
+ [ atoms ]
+ C	C	0.0	0
+
+[ CNT ]
+ [ atoms ]
+ C	C	0.0	0
+
+[ SOL ]
+ [ atoms ]
+ ; name type	charge	chargegroup
+ OW		OW		-0.8476	0
+ HW1	HW		0.4238	0
+ HW2	HW		0.4238	0
+
+
