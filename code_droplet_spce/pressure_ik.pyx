@@ -4,59 +4,57 @@ import numpy as np
 cimport numpy as np
 import sys
 import math
-from libc.math cimport sqrt, log, pi, atan
+from libc.math cimport sqrt, atan, log, pi, fabs
 from libc.stdlib cimport malloc, free
+from libc.float cimport FLT_EPSILON
 import time
 from mdtraj.formats import XTCTrajectoryFile
 from mdtraj.formats import TRRTrajectoryFile
 
-
-
 from func cimport integral_range, cal_force, cal_pn, cal_pt, vec_dot, vec_minus
 
 
-@cython.cdivision(True)
+@cython.cdivision(False)
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
 def main():
+
 
 	# This line we declare the variables
 	cdef int i, j, k, l, m
 	cdef int frame, nFrame, nFrame_used, nMol, apm
 	cdef int lenCoordVec
 	cdef int kMin
-	cdef int rowLength
 	cdef double kBT, T
 	cdef double doh, dom
-	cdef double f, t
+	cdef double r, f, t, c
 	cdef double comx, comy, comz
 	cdef double L, L2
 	cdef double rMin, rMax, dr
 	cdef double x, y, z, x0, y0, z0
 	cdef double ri, rj, rij, ri2, rj2, rij2, ririj
-	cdef double rxyi, rxyj, rxyij, rxyi2, rxyj2, rxyij2, rxyirxyij
 	cdef double Din, Dout, sDin, sDout, Rin, Rout, Rin2, Rout2, Da, Db
-	cdef double La, Lb
 	cdef double linn, linp, loutn, loutp, ll, l0, l02
-	cdef double lxy0, lxy02, lxy2, lxy
 	cdef double la, lb, lap, lbp
 	cdef double pN, pT, pK
 	cdef double v
 	cdef double pref
 	cdef double cut
 
-	cdef np.ndarray[float, ndim=3, mode='c'] coordtMat
-	cdef np.ndarray[float, ndim=2, mode='c'] coordMat
+	cdef np.ndarray[float, ndim=3] coordtMat
+	cdef np.ndarray[float, ndim=2] coordMat
 	cdef np.ndarray[float, ndim=1] tVec
 	cdef np.ndarray[double, ndim=1] rVec
+	cdef np.ndarray[double, ndim=1] Rin2Vec
+	cdef np.ndarray[double, ndim=1] Rout2Vec
 	cdef np.ndarray[float, ndim=3] boxMat
 	cdef np.ndarray[double, ndim=1] pkVec
-	cdef np.ndarray[double, ndim=1, mode='c'] buf_pnVec
-	cdef np.ndarray[double, ndim=1, mode='c'] buf_ptVec
+	cdef np.ndarray[double, ndim=1] pnVec
+	cdef np.ndarray[double, ndim=1] ptVec
 	cdef np.ndarray[double, ndim=1] vVec
 
-	cdef np.ndarray[double, ndim=3, mode='c'] fMat
+	cdef np.ndarray[double, ndim=3] fMat
 
 #	cdef np.ndarray[double, ndim=2] mMat
 #	cdef np.ndarray[double, ndim=1] mVec
@@ -69,9 +67,6 @@ def main():
 	cdef double *ojVec
 	cdef double *oijVec
 	cdef double *fVec
-
-	cdef double *Rin2Vec
-	cdef double *Rout2Vec
 
 
 	
@@ -101,41 +96,25 @@ def main():
 	L = boxMat[0][0][0]
 	L2 = L*0.5
 
-	print 'L = {}'.format(L)
-
 	pref = 1.6602	# kJ/mol/nm3 -> MPa
-	T = 300.
+	T = 260.
 	kBT = 2.479*T/298
 
 	cut = 4.0
 
 	# Setting PMat
-	rowLength = len(rVec)
 	dr = rVec[1]-rVec[0]
 	rMin = dr*0.5
-	rMax = rVec[rowLength-1]
+	rMax = rVec[len(rVec)-1]
+
+	pkVec = np.zeros( len(rVec))
+	pnVec = np.zeros( len(rVec))
+	ptVec = np.zeros( len(rVec))
 
 
-	Rin2Vec = <double *> malloc (rowLength*sizeof(double))
-	Rout2Vec = <double *> malloc (rowLength*sizeof(double))
+	fMat = np.zeros( (nMol,nMol, 3) )
 
-	for i in range (rowLength):
-		Rin2Vec[i] = (rVec[i] - 0.5*dr)**2
-		Rout2Vec[i] = (rVec[i] + 0.5*dr)**2
-
-	pkVec = np.zeros( rowLength)
-	pnMat = []
-	ptMat = []
-
-
-	vVec = np.zeros(rowLength)
-	for i in range (rowLength):
-		vVec[i] = 4*math.pi/3* (pow(rVec[i] + dr*0.5,3) - pow(rVec[i] - dr*0.5,3))
-
-
-	fMat = np.zeros( (nMol,nMol, 3))
-
-	if rowLength != len(dVec):
+	if len(rVec) != len(dVec):
 		print 'rVec and denVec have different length'
 		exit(1)
 
@@ -177,13 +156,10 @@ def main():
 	nFrame_used = 0
 	for coordMat in coordtMat:
 
-		buf_pnVec = np.zeros(rowLength)
-		buf_ptVec = np.zeros(rowLength)
-
 		if frame % 100 == 0:
 			print frame
 
-		#if frame == 1:
+		#if frame == 10000:
 		#	break
 
 		if mVec[frame] != nMol:
@@ -193,24 +169,12 @@ def main():
 		frame += 1
 		nFrame_used += 1
 
-
-		# calculate com matrix using OW position
-		comx = 0; comy = 0; comz = 0;
-		for i in range (nMol):
-			comx += 16*coordMat[apm*i,0] + coordMat[apm*i+1,0] + coordMat[apm*i+2,0]
-			comy += 16*coordMat[apm*i,1] + coordMat[apm*i+1,1] + coordMat[apm*i+2,1]
-			comz += 16*coordMat[apm*i,2] + coordMat[apm*i+1,2] + coordMat[apm*i+2,2]
-		comx /= 18.*nMol
-		comy /= 18.*nMol
-		comz /= 18.*nMol
-		for i in range (apm*nMol):
-			coordMat[i,0] -= comx
-			coordMat[i,1] -= comy
-			coordMat[i,2] -= comz
-
+		
 		# Calculate intermolecular force
 		for i in range (nMol):
 			for j in range (i+1, nMol):
+				if i==j:
+					continue
 
 				for k in range (apm):
 					iMat[k][0] = coordMat[apm*i+k,0]
@@ -220,7 +184,32 @@ def main():
 					jMat[k][1] = coordMat[apm*j+k,1]
 					jMat[k][2] = coordMat[apm*j+k,2]
 
-				
+				'''
+				if jMat[0][0]-iMat[0][0] > L2:
+					for k in range (apm):
+						jMat[k][0] -= L
+
+				elif jMat[0][0]-iMat[0][0] < -L2:
+					for k in range (apm):
+						jMat[k][0] += L
+
+				if jMat[0][1]-iMat[0][1] > L2:
+					for k in range (apm):
+						jMat[k][1] -= L
+
+				elif jMat[0][1]-iMat[0][1] < -L2:
+					for k in range (apm):
+						jMat[k][1] += L
+
+				if jMat[0][2]-iMat[0][2] > L2:
+					for k in range (apm):
+						jMat[k][2] -= L
+
+				elif jMat[0][2]-iMat[0][2] < -L2:
+					for k in range (apm):
+						jMat[k][2] += L
+				'''
+
 				fVec[0] = 0
 				fVec[1] = 0
 				fVec[2] = 0
@@ -231,21 +220,40 @@ def main():
 				fMat[i,j,1] = fVec[1]
 				fMat[i,j,2] = fVec[2]
 
+		# calculate com matrix using OW position
+		comx = 0; comy = 0; comz = 0;
+		for i in range (nMol):
+			comx += 16*coordMat[apm*i,0] + coordMat[apm*i+1,0] + coordMat[apm*i+2,0]
+			comy += 16*coordMat[apm*i,1] + coordMat[apm*i+1,1] + coordMat[apm*i+2,1]
+			comz += 16*coordMat[apm*i,2] + coordMat[apm*i+1,2] + coordMat[apm*i+2,2]
+			#comx += coordMat[apm*i,0]
+			#comy += coordMat[apm*i,1]
+			#comz += coordMat[apm*i,2]
+		comx /= float(nMol)*18
+		comy /= float(nMol)*18
+		comz /= float(nMol)*18
+		for i in range (apm*nMol):
+			coordMat[i,0] -= comx
+			coordMat[i,1] -= comy
+			coordMat[i,2] -= comz
+
 
 
 		# Calculate Pressure
 		for i in range (nMol):
-			oiVec[0] = (16*coordMat[apm*i,0] + coordMat[apm*i+1,0] + coordMat[apm*i+2,0])/18. 
+			oiVec[0] = (16*coordMat[apm*i,0] + coordMat[apm*i+1,0] + coordMat[apm*i+2,0])/18.
 			oiVec[1] = (16*coordMat[apm*i,1] + coordMat[apm*i+1,1] + coordMat[apm*i+2,1])/18.
 			oiVec[2] = (16*coordMat[apm*i,2] + coordMat[apm*i+1,2] + coordMat[apm*i+2,2])/18.
 
 			ri2 = oiVec[0]*oiVec[0] + oiVec[1]*oiVec[1] + oiVec[2]*oiVec[2]
 
 			for j in range (i+1, nMol):
-
-				ojVec[0] = (16*coordMat[apm*j,0] + coordMat[apm*j+1,0] + coordMat[apm*j+2,0])/18. 
+				if i==j:
+					continue 
+				ojVec[0] = (16*coordMat[apm*j,0] + coordMat[apm*j+1,0] + coordMat[apm*j+2,0])/18.
 				ojVec[1] = (16*coordMat[apm*j,1] + coordMat[apm*j+1,1] + coordMat[apm*j+2,1])/18.
 				ojVec[2] = (16*coordMat[apm*j,2] + coordMat[apm*j+1,2] + coordMat[apm*j+2,2])/18.
+
 
 				'''
 				if ojVec[0]-oiVec[0] > L2:
@@ -276,115 +284,100 @@ def main():
 				rij2 = oijVec[0]*oijVec[0] + oijVec[1]*oijVec[1] + oijVec[2]*oijVec[2]
 				ririj = oiVec[0]*oijVec[0] + oiVec[1]*oijVec[1] + oiVec[2]*oijVec[2]
 
-				l02 = ri2 - (ririj*ririj/rij2)
-				if l02 < 0:
-					continue
+				rij = sqrt(rij2)
+
+				l02 = ri2 - (ririj/rij)**2
 				l0 = sqrt(l02)
 
 				fVec[0] = fMat[i,j,0]
 				fVec[1] = fMat[i,j,1]
 				fVec[2] = fMat[i,j,2]
+				f = (fVec[0]*oijVec[0] + fVec[1]*oijVec[1] + fVec[2]*oijVec[2])/rij 
 
-				kMin = int(l0/dr)
-				if kMin > rowLength-1:
-					continue
+				'''
+				print 'oiVec'
+				print oiVec[0], oiVec[1], oiVec[2]
+				print 'ojVec'
+				print ojVec[0], ojVec[2], ojVec[2]
+				print 'rij'
+				print rij
+				print 'fVec'
+				print fVec[0], fVec[1], fVec[2]
+				print 'f'
+				print f
+				exit(1)
+				'''
 
-				if rj2 > ri2:
-					kMax = int(sqrt(rj2)/dr) + 1
+				if l02 < 0:
+					l0 = 0
 				else:
-					kMax = int(sqrt(ri2)/dr) + 1
-
-				if kMax > rowLength-1:
-					kMax = rowLength
-
-				for k in range (kMin, kMax, 1):
-					r = rVec[k]
-
-					# Check Din and Dout
-					Din = (ririj*ririj - rij2*(ri2 - Rin2Vec[k]))
-					Dout = (ririj*ririj - rij2*(ri2 - Rout2Vec[k]))
-
-					if Dout <= 0:
-						continue
-					
-					loutp = (-ririj + sqrt(Dout))/rij2
-					loutn = (-ririj - sqrt(Dout))/rij2
-
-					if loutn>1 or loutp<0:
+					kMin = int(l0/dr)
+					if kMin > len(rVec)-1:
 						continue
 
-					if Din > 0:
-						linp = (-ririj + sqrt(Din))/rij2
-						linn = (-ririj - sqrt(Din))/rij2
+					if rj2 > ri2:
+						kMax = int(sqrt(rj2)/dr) + 1
 					else:
-						linp = -10
-						linn = -10
+						kMax = int(sqrt(ri2)/dr) + 1
 
-					if linn<0 and linp>1:
-						continue
+					if kMax > len(rVec)-1:
+						kMax = len(rVec)
 
-					# choose integral range
-					la, lb, lap, lbp = integral_range(Din, loutn, linn, linp, loutp)
+					for k in range (kMin, kMax):
+						r = rVec[k]
 
-					buf_pnVec[k] += cal_pn(fVec, oiVec, oijVec, la, lb, ri2, rij2, ririj)
-					buf_ptVec[k] += cal_pt(fVec, oiVec, oijVec, la, lb)
+						Dout = ririj**2 - rij2*(ri2 - r*r)
 
-					if lbp > lap:
-						buf_pnVec[k] += cal_pn(fVec, oiVec, oijVec, lap, lbp, ri2, rij2, ririj)
-						buf_ptVec[k] += cal_pt(fVec, oiVec, oijVec, lap, lbp)
+						if Dout < FLT_EPSILON:
+							continue
+						
+						loutp = (-ririj + sqrt(Dout))/rij2
+						loutn = (-ririj - sqrt(Dout))/rij2
 
-						if lap<0 or lbp<0:
-							print Din, la, lb, lap, lbp
+						pN = 0
+						if loutn>1-FLT_EPSILON or loutp<FLT_EPSILON:
+							pN = 0
+						else:
+							if loutn<-FLT_EPSILON:
+								pN += 0
+							else:
+								pN += fabs(ririj + loutn*rij2)/(r*rij)
+							
+							if loutp>1+FLT_EPSILON:
+								pN += 0
+							else:
+								pN += fabs(ririj + loutp*rij2)/(r*rij)
 
-		for i in range (rowLength):
-			buf_pnVec[i] *= pref/vVec[i]
-			buf_ptVec[i] *= pref/vVec[i]
+						pN *= f
+						pnVec[k] += pN
 
-		pnMat.append(buf_pnVec)
-		ptMat.append(buf_ptVec)
+
 
 	# prepare pK
-	for i in range (rowLength):
+	for i in range (len(rVec)):
 		pkVec[i] = pref*kBT*dVec[i]
 	
+	for i in range (len(rVec)):
+		pnVec[i] *= pref/nFrame_used/(4*pi*rVec[i]*rVec[i])
+		ptVec[i] *= pref/nFrame_used/(4*pi*rVec[i]*rVec[i])
+	
+		
 	print 'nFrame_used = {}'.format(nFrame_used)
-
-	pnMat = np.asarray(pnMat)
-	pnMat = np.transpose(pnMat)
-
-	ptMat = np.asarray(ptMat)
-	ptMat = np.transpose(ptMat)
-
-	pnVec = np.zeros(rowLength)
-	pnsVec = np.zeros(rowLength)
-
-	ptVec = np.zeros(rowLength)
-	ptsVec = np.zeros(rowLength)
-
-	for i in range (rowLength):
-		pnVec[i] += np.mean(pnMat[i])	
-		pnsVec[i] += np.std(pnMat[i])/sqrt(float(nFrame_used))
-
-		ptVec[i] += np.mean(ptMat[i])
-		ptsVec[i] += np.std(ptMat[i])/sqrt(float(nFrame_used))
-
 
 	# prepare mechanical equilibrium
 	pt2Vec = np.zeros(len(pkVec) )
 
 	for i in range (len(pkVec)-1):
-		pt2Vec[i] = (pkVec[i] + buf_pnVec[i]) + 0.5*rVec[i]*(pkVec[i+1] + buf_pnVec[i+1] - pkVec[i] - buf_pnVec[i])/(rVec[1]-rVec[0])
+		pt2Vec[i] = (pkVec[i] + pnVec[i]) + 0.5*rVec[i]*(pkVec[i+1] + pnVec[i+1] - pkVec[i] - pnVec[i])/(rVec[1]-rVec[0])
 
 	# coordt loop is over
 	oMat = []
 	oMat.append(rVec)
 	oMat.append(pkVec)
-	oMat.append(pnVec)
-	oMat.append(pnsVec)
 	oMat.append(ptVec)
-	oMat.append(ptsVec)
-	#oMat.append(pkVec+buf_ptVec+buf_pnVec)
-	#oMat.append(pt2Vec)
+	oMat.append(pnVec)
+	#oMat.append(pkVec+ptVec+pnVec)
+	oMat.append(pt2Vec)
 	oMat = np.transpose(oMat)
 
 	
@@ -406,11 +399,7 @@ def main():
 	free(ojVec)
 	free(oijVec)
 
-	free(Rin2Vec)
-	free(Rout2Vec)
-
 	free(fVec)
-
 
 
 		

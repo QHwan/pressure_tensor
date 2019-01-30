@@ -1,13 +1,13 @@
 import numpy as np
 cimport numpy as np
 
-cdef vec_minus(float *ijVec, float *iVec, float *jVec)
-cdef vec_dot(float *iVec, float *jVec)
+cdef vec_minus(double *ijVec, double *iVec, double *jVec)
+cdef vec_dot(double *iVec, double *jVec)
 
-cdef integral_range(float Din, float loutn, float linn, float linp, float loutp)
-cdef cal_force(float *fVec, float **iMat, float **jMat, float cut)
+cdef integral_range(double Din, double loutn, double linn, double linp, double loutp)
+cdef void cal_force(double *fVec, double **iMat, double **jMat, double cut, int apm)
 
-cdef cal_pn(float *fVec, float *iVec, float *jVec, float la, float lb)
-cdef cal_pt(float *fVec, float *iVec, float *jVec, float la, float lb)
+cdef double cal_pn(double *fVec, double *iVec, double *jVec, double la, double lb, double ri2, double rij2, double ririj)
+cdef double cal_pt(double *fVec, double *iVec, double *jVec, double la, double lb)
 
 

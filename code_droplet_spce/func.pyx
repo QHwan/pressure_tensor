@@ -1,19 +1,20 @@
 import numpy as np
 cimport numpy as np
 import math
-from libc.math cimport sqrt, log, atan, atanh
+from libc.math cimport log, sqrt, atan
 from libc.stdlib cimport malloc, free
 
-cdef vec_minus(float *ijVec, float *iVec, float *jVec):
+
+cdef vec_minus(double *ijVec, double *iVec, double *jVec):
 	cdef int i
 
 	for i in range (3):
 		ijVec[i] = jVec[i] - iVec[i]
 
 
-cdef vec_dot(float *iVec, float *jVec):
+cdef vec_dot(double *iVec, double *jVec):
 	cdef int i
-	cdef float d
+	cdef double d
 
 	d = 0
 	for i in range (3):
@@ -21,10 +22,11 @@ cdef vec_dot(float *iVec, float *jVec):
 	
 	return d
 
-cdef integral_range(float Din, float loutn, float linn, float linp, float loutp):
-	cdef float la, lb, lap, lbp
 
-	if Din<0:
+cdef integral_range(double Din, double loutn, double linn, double linp, double loutp):
+	cdef double la, lb, lap, lbp
+
+	if Din <= 0:
 		la = loutn
 		lb = loutp
 		lap = -10
@@ -65,132 +67,86 @@ cdef integral_range(float Din, float loutn, float linn, float linp, float loutp)
 	return la, lb, lap, lbp
 
 
-cdef cal_force(float *fVec, float **iMat, float **jMat, float cut):
-	cdef int apm
-	cdef float sig, eps, sig6
-	cdef float qo, qh
-	cdef float f, pref
+cdef void cal_force(double *fVec, double **iMat, double **jMat, double cut, int apm):
+	cdef double sig, eps, sig6
+	cdef double qo, qh
+	cdef double f, pref
 
-	cdef np.ndarray[float, ndim=1] qVec
+	cdef np.ndarray[double, ndim=1, mode="c"] qVec
 
 	sig = 0.316557
-	sig6 = sig**6
+	sig6 = sig*sig*sig*sig*sig*sig
 	eps = 0.65019
 
 	pref = 138.935458
 	qo = -0.8476
 	qh = 0.4238
 
-	apm = 3
-
-	qVec = np.zeros(apm, dtype=np.float32)
-	qVec[0] = qo
-	qVec[1] = qh
-	qVec[2] = qh
-
+	qVec = np.array([qo, qh, qh])
 
 	# considering charge group
-	rij = sqrt((jMat[0][0]-iMat[0][0])**2 
-		  + (jMat[0][1]-iMat[0][1])**2 
-		  + (jMat[0][2]-iMat[0][2])**2)
+	rij = sqrt((jMat[0][0]-iMat[0][0])*(jMat[0][0]-iMat[0][0])
+		  + (jMat[0][1]-iMat[0][1])*(jMat[0][1]-iMat[0][1]) 
+		  + (jMat[0][2]-iMat[0][2])*(jMat[0][2]-iMat[0][2]))
 
 	if rij > cut:
 		fVec[0] = 0
-		fVec[1] = 0
-		fVec[2] = 0
-
 	else:
+		f = 24*eps*sig6/(rij*rij*rij*rij*rij*rij*rij*rij) *  (2*sig6/(rij*rij*rij*rij*rij*rij) - 1)
+
+		fVec[0] += f*(jMat[0][0]-iMat[0][0])
+		fVec[1] += f*(jMat[0][1]-iMat[0][1])
+		fVec[2] += f*(jMat[0][2]-iMat[0][2])
+
 		for i in range (apm):
 			for j in range (apm):
-				rij = sqrt((jMat[j][0]-iMat[i][0])**2 
-					  + (jMat[j][1]-iMat[i][1])**2 
-					  + (jMat[j][2]-iMat[i][2])**2)
+				rij = sqrt((jMat[j][0]-iMat[i][0])*(jMat[j][0]-iMat[i][0]) 
+					  + (jMat[j][1]-iMat[i][1])*(jMat[j][1]-iMat[i][1]) 
+					  + (jMat[j][2]-iMat[i][2])*(jMat[j][2]-iMat[i][2]))
 
-				if i==0 and j==0:
-					f = 12*sig6*sig6/pow(rij,14) - 6*sig6/pow(rij,8)
-					f *= 4*eps
-
-					fVec[0] += f*(jMat[j][0]-iMat[i][0])
-					fVec[1] += f*(jMat[j][1]-iMat[i][1])
-					fVec[2] += f*(jMat[j][2]-iMat[i][2])
-
-				f = pref*qVec[i]*qVec[j]/rij/rij/rij
+				f = pref*qVec[i]*qVec[j]/(rij*rij*rij)
 
 				fVec[0] += f*(jMat[j][0]-iMat[i][0])
 				fVec[1] += f*(jMat[j][1]-iMat[i][1])
 				fVec[2] += f*(jMat[j][2]-iMat[i][2])
 
-			
 
-
-
-cdef cal_pn(float *fVec, float *iVec, float *ijVec, float la, float lb):
-	cdef int i
-	cdef float a, b, c, d, e, f
-	cdef float rifij, rijfij, ririj, riri, rijrij
-	cdef float pn, pnb, pna
-
-	cdef float aa, bb, bc
+cdef double cal_pn(double *fVec, double *iVec, double *ijVec, double la, double lb, double ri2, double rij2, double ririj):
+	cdef double a, b, c, d, e, f
+	cdef double rifij, rijfij
+	cdef double pn = 0
+	cdef double bb
 
 	rifij = 0.
 	rijfij = 0.
-	ririj = 0.
-	riri = 0.
-	rijrij = 0.
-	for i in range (3):
-		rifij += iVec[i]*fVec[i]
-		rijfij += ijVec[i]*fVec[i]
-		ririj += iVec[i]*ijVec[i]
-		rijrij += ijVec[i]*ijVec[i]
-		riri += iVec[i]*iVec[i]
+	rifij = iVec[0]*fVec[0] + iVec[1]*fVec[1] + iVec[2]*fVec[2]
+	rijfij = ijVec[0]*fVec[0] + ijVec[1]*fVec[1] + ijVec[2]*fVec[2]
 
 	a = rifij * ririj
-	b = rijfij * ririj + rifij * rijrij
-	c = rijfij * rijrij
-	d = riri
+	b = rijfij * ririj + rifij * rij2
+	c = rijfij * rij2
+	d = ri2
 	e = 2*ririj
-	f = rijrij
-
-	aa = b*f - c*e
+	f = rij2
 
 	if 4*d*f - e*e <= 0:
-		'''
-		pnb = 2*c*f*lb
-		pnb += (b*f - c*e)*log(d + e*lb + f*lb*lb)
-		pnb += -2*atanh( (e+2*f*lb)/sqrt(-4*d*f+e*e) ) / sqrt(-4*d*f + e*e) * (f*(2*a*f-b*e) + c*(e*e-2*d*f))
-		pnb *= 0.5/(f*f)
-
-		pna = 2*c*f*la
-		pna += (b*f - c*e)*log(d + e*la + f*la*la)
-		pna += -2*atanh( (e+2*f*la)/sqrt(-4*d*f+e*e) ) / sqrt(-4*d*f + e*e) * (f*(2*a*f-b*e) + c*(e*e-2*d*f))
-		pna *= 0.5/(f*f)
-
-		pn = pnb - pna
-		'''
-		pn = 0
-
+		return pn
 	else:
+		bb = 1/sqrt(4*d*f-e*e)
 
-		pnb = 2*c*f*lb
-		pnb += (b*f - c*e)*log(d + e*lb + f*lb*lb)
-		pnb += 2*atan( (e+2*f*lb)/sqrt(4*d*f-e*e) )/sqrt(4*d*f - e*e) * (f*(2*a*f-b*e) + c*(e*e-2*d*f))
-		pnb *= 0.5/(f*f)
-
-		pna = 2*c*f*la
-		pna += (b*f - c*e)*log(d + e*la + f*la*la)
-		pna += 2*atan( (e+2*f*la)/sqrt(4*d*f-e*e) )/sqrt(4*d*f - e*e) * (f*(2*a*f-b*e) + c*(e*e-2*d*f))
-		pna *= 0.5/(f*f)
-
-		pn = pnb - pna
+		pn = 2*c*f*(lb-la) 
+		pn += (b*f - c*e)*( log( (d+e*lb+f*lb*lb)/(d+e*la+f*la*la) ) )  
+		pn += 2*bb*(f*(2*a*f-b*e)+c*(e*e-2*d*f))* (atan((e+2*f*lb)*bb) - atan((e+2*f*la)*bb))
+		pn *= 0.5/(f*f)
 
 	return pn
 
 
-cdef cal_pt(float *fVec, float *iVec, float *ijVec, float la, float lb):
-	cdef float a, b, c, d, e, f
-	cdef float pt, ptb, pta
 
-	cdef float bb
+cdef double cal_pt(double *fVec, double *iVec, double *ijVec, double la, double lb):
+	cdef double a, b, c, d, e, f
+	cdef double pt = 0
+	cdef double bb
 
 	a = iVec[0]*fVec[1] - iVec[1]*fVec[0]
 	b = ijVec[0]*fVec[1] - ijVec[1]*fVec[0]
@@ -199,20 +155,13 @@ cdef cal_pt(float *fVec, float *iVec, float *ijVec, float la, float lb):
 	e = 2*(iVec[0]*ijVec[0] + iVec[1]*ijVec[1])
 	f = ijVec[0]*ijVec[0] + ijVec[1]*ijVec[1]
 
-
 	if 4*d*f-e*e <= 0 :
-		bb = sqrt(-4*d*f+e*e)
-
-		pt = b/2/f*( log(d+e*lb+f*lb*lb) - log(d+e*la+f*la*la) ) 
-		pt += -(2*a*f-b*e)/f/bb * (atanh((e+2*f*lb)/bb) - atanh((e+2*f*la)/bb))
-		pt *= c
-
+		return pt
 	else:
-		bb = sqrt(4*d*f-e*e)
+		bb = 1/sqrt(4*d*f-e*e)
 
-		pt = b/2/f*( log(d+e*lb+f*lb*lb) - log(d+e*la+f*la*la) )
-		pt += (2*a*f-b*e)/f/bb * (atan((e+2*f*lb)/bb) - atan((e+2*f*la)/bb))
+		pt = 0.5*b/f*( log((d+e*lb+f*lb*lb)/(d+e*la+f*la*la)) ) 
+		pt += (2*a*f-b*e)/f*bb * (atan((e+2*f*lb)*bb) - atan((e+2*f*la)*bb))
 		pt *= c
 
 	return pt
-
